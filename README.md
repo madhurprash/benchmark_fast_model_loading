@@ -246,22 +246,6 @@ Or use AWS CLI:
 aws sagemaker delete-endpoint --endpoint-name your-endpoint-name
 ```
 
-## Project Structure
-
-```
-   README.md                           # This file
-   config.yaml                         # Configuration for both deployment types
-   pyproject.toml                      # Python dependencies
-   utils.py                           # Utility functions
-   .env.example                       # Environment variables template
-   fast_model_loading/
-      fast_model_loading.py          # Fast loading benchmark script
-      .env.example                   # Environment template
-   standard_deployment/
-       standard_sm_deployment.py      # Standard deployment benchmark script
-       .env.example                   # Environment template
-```
-
 ## Links and Resources
 
 - [Amazon SageMaker Fast Model Loading Documentation](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-fast-model-loading.html)
