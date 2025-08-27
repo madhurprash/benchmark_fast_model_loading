@@ -1,9 +1,26 @@
+import os
+import sys
+import time
 import json
 import boto3
 import sagemaker
-import time
 from datetime import datetime, timedelta
 from sagemaker.djl_inference import DJLModel
+from dotenv import load_dotenv
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import *
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Change this line to look in the parent directory
+try:
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_path = os.path.join(parent_dir, 'config.yaml')
+    config_data: Dict = load_config(config_path)
+    print(f"Config data that will be used in this deployment: {json.dumps(config_data, indent=4)}")
+except Exception as e:
+    print(f"An error occurred while loading the config data: {e}")
 
 def format_duration(seconds):
     """Format duration in a human-readable way"""
@@ -14,6 +31,9 @@ def format_duration(seconds):
     else:
         return f"{remaining_seconds}s"
 
+STANDARD_DEPLOYMENT_INFO: Dict = config_data['standard_deployment_info']
+MODEL_ID: str = STANDARD_DEPLOYMENT_INFO.get('hf_model_id')
+print(f"Going to deploy model: {MODEL_ID} in the standard deployment way...")
 # Start overall timing
 overall_start_time = time.time()
 print(f"🚀 Starting SageMaker deployment at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -24,31 +44,33 @@ setup_start_time = time.time()
 
 # Get execution role
 try:
-    role = sagemaker.get_execution_role()
-    print(f"Using SageMaker execution role: {role}")
-except ValueError:
     iam = boto3.client('iam')
-    role = iam.get_role(RoleName='sagemaker_execution_role')['Role']['Arn']
+    role = STANDARD_DEPLOYMENT_INFO.get('sagemaker_exec_role')
     print(f"Using IAM role: {role}")
+except Exception as e:
+    print(f"An error occurred while getting a sagemaker execution role: {e}")
 
 # Get current region for container URI
 session = boto3.Session()
-region = session.region_name or 'us-east-1'
+region = session.region_name
 
 # Use the latest LMI v15 container explicitly
-latest_lmi_image = f"763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128"
+latest_lmi_image = STANDARD_DEPLOYMENT_INFO.get('image_uri').format(region=region)
 print(f"Using LMI container: {latest_lmi_image}")
 
-# LMI environment configuration for Qwen2.5-VL-7B-Instruct
-lmi_env = {
-    "SERVING_FAIL_FAST": "true",
-    "OPTION_ASYNC_MODE": "true",
-    "OPTION_ROLLING_BATCH": "disable",
-    "HF_MODEL_ID": "Qwen/Qwen2.5-VL-7B-Instruct",
-    "OPTION_MAX_MODEL_LEN": "4096",
-    "OPTION_TENSOR_PARALLEL_DEGREE": "max",
-    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service",
-}
+# LMI environment configuration 
+lmi_env = STANDARD_DEPLOYMENT_INFO.get('container_env_vars', {}).copy()
+
+# Always try to load HF token for gated models
+hf_token = os.getenv('HUGGING_FACE_HUB_TOKEN')
+if hf_token:
+    lmi_env['HUGGING_FACE_HUB_TOKEN'] = hf_token
+    lmi_env['HF_TOKEN'] = hf_token  # Some containers expect HF_TOKEN instead
+    print(f"✓ Hugging Face token loaded from environment")
+else:
+    print(f"⚠️ Warning: HUGGING_FACE_HUB_TOKEN not found in environment variables")
+    print(f"   Please create a .env file with HUGGING_FACE_HUB_TOKEN='your_token_here'")
+    print(f"   Or set the environment variable before running this script")
 
 print("Environment configuration:")
 for key, value in lmi_env.items():
@@ -56,10 +78,10 @@ for key, value in lmi_env.items():
 
 # Create DJL Model for Large Model Inference
 model = DJLModel(
-    model_id="Qwen/Qwen2.5-VL-7B-Instruct",
+    model_id=MODEL_ID,
     env=lmi_env,
     role=role,
-    image_uri=latest_lmi_image,  # Use latest LMI v15 container
+    image_uri=latest_lmi_image,
     predictor_cls=sagemaker.predictor.Predictor
 )
 
@@ -70,7 +92,7 @@ print(f"Container: {latest_lmi_image}")
 
 # Generate a unique endpoint name with timestamp
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-endpoint_name = f"qwen25-vl-7b-{timestamp}"
+endpoint_name = f"llama3-1-8b-{timestamp}"
 print(f"\n🚀 Deploying model to endpoint: {endpoint_name}")
 print("This may take 10-15 minutes...")
 print("-" * 40)
@@ -83,8 +105,8 @@ print(f"Deployment started at: {datetime.now().strftime('%H:%M:%S')}")
 try:
     predictor = model.deploy(
         initial_instance_count=1,
-        instance_type="ml.g5.2xlarge",
-        container_startup_health_check_timeout=600,  # 10 minutes timeout
+        instance_type=STANDARD_DEPLOYMENT_INFO.get('instance_type'),
+        container_startup_health_check_timeout=STANDARD_DEPLOYMENT_INFO.get('container_startup_health_check_timeout'),
         endpoint_name=endpoint_name
     )
     deployment_duration = time.time() - deployment_start_time

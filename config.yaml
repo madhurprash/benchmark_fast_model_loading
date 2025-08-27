@@ -1,0 +1,83 @@
+# this file contains information about the model that needs to be deployed
+# using the standard method versus the fast model loading method
+
+# This contains information about the model that is loaded and deployed using the
+# standard version. In this case, new instances are provisioned for compute, 
+# the container image is downloaded, the model artifacts are then downloaded from s3
+# to disk, and then the model artifacts are loaded on the host (using CPU and memory)
+# after which the model is prepared to be loaded on GPU and finally loaded
+standard_deployment_info:
+  # this is the model deployed:
+  hf_model_id: meta-llama/Llama-3.1-8B
+  # this is the execution role that is used in the model
+  # deployment process
+  sagemaker_exec_role: arn:aws:iam::218208277580:role/service-role/AmazonSageMaker-ExecutionRole-20240415T095722
+  # this is the image uri that is used to deploy the model. 
+  # this sample only supports models to be deployed using 
+  # DJL (Deep Java Library)
+  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
+  # these are the environment variables that are used
+  # to deploy the model
+  container_env_vars:
+    "SERVING_FAIL_FAST": "true"
+    "OPTION_ASYNC_MODE": "true"
+    "OPTION_ROLLING_BATCH": "disable"
+    "HF_MODEL_ID": MODEL_ID
+    "OPTION_MAX_MODEL_LEN": "4096"
+    "OPTION_TENSOR_PARALLEL_DEGREE": "max"
+    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
+  # this is the instance type to deploy the model on
+  instance_type: ml.g5.2xlarge
+  # this is the container startup health check timeout time
+  container_startup_health_check_timeout: 600
+  # Configuration for HuggingFace token usage
+  use_hf_token: yes
+
+# This is the configuration for fast model loading. In this, the fast model loader
+# uses a technique to load and prepare the LLM so that SageMaker AI can load it onto the 
+# instance more quickly. For example, to prepare the model, SageMaker AI shards the model in advance
+# by dividing it into portions that can each reside on a separate GPU for distributed
+# inference. Also SageMaker AI stores the model weights in equal-sized chunks for concurrent
+# loading. In this process, SageMaker AI loads the model weights from S3 using streaming directly
+# onto the GPUs of the instance and by doing so, it omits several time consuming steps
+# such as downloading the model artifacts from s3 to disk and then loading it to the host 
+# memory, and then finally sharding the model on the host before loading onto the GPUs.
+fast_model_loading_info:
+  # this is the model deployed:
+  hf_model_id: meta-llama/Llama-3.1-8B
+  # this is the bucket where the model weights will be stored
+  bucket: fmbench-deep-dive
+  # this is the execution role that is used in the model
+  # deployment process
+  sagemaker_exec_role: arn:aws:iam::218208277580:role/service-role/AmazonSageMaker-ExecutionRole-20240415T095722
+  # this is the image uri that is used to deploy the model. 
+  # this sample only supports models to be deployed using 
+  # DJL (Deep Java Library)
+  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
+  # these are the environment variables that are used
+  # to deploy the model
+  container_env_vars:
+    "SERVING_FAIL_FAST": "true"
+    "OPTION_ASYNC_MODE": "true"
+    "OPTION_ROLLING_BATCH": "disable"
+    "HF_MODEL_ID": meta-llama/Llama-3.1-8B
+    "OPTION_MAX_MODEL_LEN": "4096"
+    "OPTION_TENSOR_PARALLEL_DEGREE": "max"
+    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
+  # this is the instance type to deploy the model on
+  instance_type: ml.g5.2xlarge
+  # this is the container startup health check timeout time
+  container_startup_health_check_timeout: 600
+  # let's create the schema builder - this is used in sagemaker's model builder object to 
+  # define the input and output schema of the model endpoint which helps in generating the 
+  # necessary serialization and deserialization functions
+  sample_input: 
+    "inputs": "What is the capital of France?"
+    "parameters": 
+        "max_new_tokens": 100
+        "temperature": 0.7
+        "do_sample": True
+  sample_output:
+  - "generated_text": "The capital of France is Paris."
+  instance_count: 1
+  use_hf_token: yes

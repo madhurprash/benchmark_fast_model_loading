@@ -16,6 +16,8 @@ In this case, the Fast Model Loader does the following:
 1. Weight streaming - Directly streams the model weights from S3 to GPU memory
 2. Model sharding for streaming - Pre-shards the model in uniform chunks for optimal loading
 """
+import os
+import sys
 import boto3
 import time
 from sagemaker import Session
@@ -23,6 +25,24 @@ from sagemaker import get_execution_role
 from sagemaker.serve.builder.model_builder import ModelBuilder
 from sagemaker.serve.builder.schema_builder import SchemaBuilder
 import logging
+from dotenv import load_dotenv
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import *
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Change this line to look in the parent directory
+try:
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_path = os.path.join(parent_dir, 'config.yaml')
+    config_data: Dict = load_config(config_path)
+    print(f"Config data that will be used in this deployment: {json.dumps(config_data, indent=4)}")
+except Exception as e:
+    print(f"An error occurred while loading the config data: {e}")
+
+# Let's get the configuration for fast model loading information on sagemaker
+FAST_MODEL_LOADING_INFO: Dict = config_data['fast_model_loading_info']
 
 # Track overall execution time
 script_start_time = time.perf_counter()
@@ -33,64 +53,57 @@ print("=== SageMaker Fast Model Loader Performance Analysis ===")
 print("Initializing SageMaker session and role...")
 init_start_time = time.perf_counter()
 
-role = get_execution_role()
+role = FAST_MODEL_LOADING_INFO.get('sagemaker_exec_role')
 region = boto3.Session().region_name
 sess = Session()
 
 # In this case, we will use a default bucket to store the model weights
-bucket = sess.default_bucket()
+bucket = FAST_MODEL_LOADING_INFO.get('bucket')
 
 init_end_time = time.perf_counter()
 print(f"✓ SageMaker initialization completed in {init_end_time - init_start_time:.2f} seconds")
 
 # Model configuration
-HF_MODEL: str = "Qwen/Qwen2.5-VL-7B-Instruct"
-INSTANCE_TYPE: str = "ml.g5.2xlarge"
+HF_MODEL: str = FAST_MODEL_LOADING_INFO.get('hf_model_id')
+INSTANCE_TYPE: str = FAST_MODEL_LOADING_INFO.get('instance_type')
 
 # Environment variables for the model
-env_vars = {
-    "SERVING_FAIL_FAST": "true",
-    "OPTION_ASYNC_MODE": "true",
-    "OPTION_ROLLING_BATCH": "disable",
-    "HF_MODEL_ID": HF_MODEL,
-    "OPTION_MAX_MODEL_LEN": "4096",
-    "OPTION_TENSOR_PARALLEL_DEGREE": "max",
-    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service",
-}
+env_vars = FAST_MODEL_LOADING_INFO.get('container_env_vars', {}).copy()
 
+# Always try to load HF token for gated models
+hf_token = os.getenv('HUGGING_FACE_HUB_TOKEN')
+if hf_token:
+    env_vars['HUGGING_FACE_HUB_TOKEN'] = hf_token
+    env_vars['HF_TOKEN'] = hf_token  # Some containers expect HF_TOKEN instead
+    print(f"✓ Hugging Face token loaded from environment")
+    print(f"environment variables: {env_vars}")
+else:
+    print(f"⚠️ Warning: HUGGING_FACE_HUB_TOKEN not found in environment variables")
+    print(f"   Please create a .env file with HUGGING_FACE_HUB_TOKEN='your_token_here'")
+    print(f"   Or set the environment variable before running this script")
+    # Set empty token to avoid undefined variable errors
+    hf_token = ""
 # Container image URI
 # Latest image URI is not working so going to test with
 # the prior version to check for deployment time improvements
 # DJL_IMAGE_URI: str = f"763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128"
-LMI_IMAGE_URI = f"763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128"
+LMI_IMAGE_URI = FAST_MODEL_LOADING_INFO.get('image_uri').format(region=region)
 print(f"Using LMI container: {LMI_IMAGE_URI}")
 
 # Step 1: Create the model builder class
 print("\n=== Step 1: Creating Model Builder ===")
 builder_start_time = time.perf_counter()
 
-"""
-Next, we will create a model building class to prepare and package the model inference
-components. In this example, we will use the Qwen/Qwen2.5-VL-7B-Instruct model from
-hugging face on SageMaker
-"""
+sample_input = FAST_MODEL_LOADING_INFO.get('sample_input')
+print(f"going to use the following sample input: {sample_input}")
 
-sample_input = {
-    "inputs": "What is the capital of France?",
-    "parameters": {
-        "max_new_tokens": 100,
-        "temperature": 0.7,
-        "do_sample": True
-    }
-}
-
-sample_output = [{"generated_text": "The capital of France is Paris."}]
+sample_output = FAST_MODEL_LOADING_INFO.get('sample_output')
+print(f"going to use the following sample output: {sample_output}")
 
 
 mb = ModelBuilder(
     model=HF_MODEL,
     role_arn=role,
-    sagemaker_session=sess,
     schema_builder=SchemaBuilder(sample_input=sample_input, sample_output=sample_output), 
     env_vars=env_vars,
     image_uri=LMI_IMAGE_URI,
@@ -120,6 +133,7 @@ mb.optimize(
             "HF_HUB_ENABLE_HF_TRANSFER": "1",
             # vLLM V1 is default on LMI v15, but you can pin it:
             # "VLLM_USE_V1": "1",
+            "HUGGING_FACE_HUB_TOKEN": hf_token,
         },
     },
 )
@@ -143,7 +157,7 @@ deploy_start_time = time.perf_counter()
 print(f"Deploying model to {INSTANCE_TYPE} instance...")
 predictor = final_model.deploy(
     instance_type=INSTANCE_TYPE,
-    initial_instance_count=1
+    initial_instance_count=FAST_MODEL_LOADING_INFO.get('instance_count')
 )
 
 deploy_end_time = time.perf_counter()
