@@ -9,4 +9,5 @@ dependencies = [
     "boto3",
     "zmq",
     "python-dotenv",
+    "huggingface-hub>=0.34.4",
 ]

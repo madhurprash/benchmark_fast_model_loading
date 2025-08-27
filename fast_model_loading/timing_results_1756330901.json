@@ -1,0 +1,12 @@
+{
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "instance_type": "ml.g5.2xlarge",
+  "initialization_time": 0.014258765993872657,
+  "builder_creation_time": 0.0004756310081575066,
+  "optimization_time": 1116.8918553480034,
+  "build_time": 1.3685317259951262,
+  "deployment_time": 450.0898740720004,
+  "testing_time": 0.14585125500161666,
+  "total_execution_time": 1568.5111365079938,
+  "timestamp": "2025-08-27 21:41:41"
+}

@@ -157,8 +157,8 @@ summary_content = f"""
 
 📋 DEPLOYMENT DETAILS:
   • Endpoint name:   {endpoint_name}
-  • Instance type:   ml.g5.2xlarge
-  • Model:           Qwen/Qwen2.5-VL-7B-Instruct
+  • Instance type:   {STANDARD_DEPLOYMENT_INFO.get('instance_type')}
+  • Model:           {MODEL_ID}
   • Container:       {latest_lmi_image}
   • Completed at:    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 

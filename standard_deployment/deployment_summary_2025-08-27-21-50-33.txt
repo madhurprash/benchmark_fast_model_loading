@@ -1,0 +1,36 @@
+
+============================================================
+🎉 DEPLOYMENT SUMMARY
+============================================================
+📊 TIMING METRICS:
+  • Setup time:      0s
+  • Deployment time: 10m 32s
+  • Total time:      10m 33s
+
+📋 DEPLOYMENT DETAILS:
+  • Endpoint name:   
+  • Instance type:   ml.g5.2xlarge
+  • Model:           meta-llama/Llama-3.1-8B-Instruct
+  • Container:       763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.32.0-lmi14.0.0-cu126
+  • Completed at:    2025-08-27 22:01:06
+
+==================================================
+EXAMPLE USAGE FOR VISION-LANGUAGE TASKS:
+==================================================
+# For text + image inputs, use this format:
+payload = {
+    "inputs": [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What do you see in this image?"},
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,YOUR_BASE64_IMAGE"}}
+            ]
+        }
+    ],
+    "parameters": {
+        "max_new_tokens": 512,
+        "temperature": 0.7
+    }
+}
+response = predictor.predict(payload)

@@ -117,7 +117,7 @@ print("\n=== Step 2: Optimizing Model for Fast Loading ===")
 optimize_start_time = time.perf_counter()
 
 output_path = f"s3://{bucket}/sharding"
-print(f"Going to optimize the Qwen model builder object...")
+print(f"Going to optimize the model builder object...")
 print(f"Output path: {output_path}")
 
 mb.optimize(

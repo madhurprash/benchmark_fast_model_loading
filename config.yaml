@@ -8,24 +8,24 @@
 # after which the model is prepared to be loaded on GPU and finally loaded
 standard_deployment_info:
   # this is the model deployed:
-  hf_model_id: meta-llama/Llama-3.1-8B
+  hf_model_id: meta-llama/Llama-3.1-8B-Instruct
   # this is the execution role that is used in the model
   # deployment process
-  sagemaker_exec_role: arn:aws:iam::218208277580:role/service-role/AmazonSageMaker-ExecutionRole-20240415T095722
+  sagemaker_exec_role: 
   # this is the image uri that is used to deploy the model. 
   # this sample only supports models to be deployed using 
   # DJL (Deep Java Library)
-  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
+  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.32.0-lmi14.0.0-cu126
   # these are the environment variables that are used
   # to deploy the model
   container_env_vars:
-    "SERVING_FAIL_FAST": "true"
-    "OPTION_ASYNC_MODE": "true"
-    "OPTION_ROLLING_BATCH": "disable"
-    "HF_MODEL_ID": MODEL_ID
-    "OPTION_MAX_MODEL_LEN": "4096"
+    "HF_MODEL_ID": meta-llama/Llama-3.1-8B-Instruct
+    "OPTION_ROLLING_BATCH": "lmi-dist"
+    "OPTION_MAX_ROLLING_BATCH_SIZE": "16"
     "OPTION_TENSOR_PARALLEL_DEGREE": "max"
-    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
+    "OPTION_DTYPE": "fp16"
+    "OPTION_MAX_MODEL_LEN": "6000"
+    # "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
   # this is the instance type to deploy the model on
   instance_type: ml.g5.2xlarge
   # this is the container startup health check timeout time
@@ -44,26 +44,27 @@ standard_deployment_info:
 # memory, and then finally sharding the model on the host before loading onto the GPUs.
 fast_model_loading_info:
   # this is the model deployed:
-  hf_model_id: meta-llama/Llama-3.1-8B
+  hf_model_id: meta-llama/Llama-3.1-8B-Instruct
   # this is the bucket where the model weights will be stored
-  bucket: fmbench-deep-dive
+  bucket: 
   # this is the execution role that is used in the model
   # deployment process
-  sagemaker_exec_role: arn:aws:iam::218208277580:role/service-role/AmazonSageMaker-ExecutionRole-20240415T095722
+  sagemaker_exec_role: 
   # this is the image uri that is used to deploy the model. 
   # this sample only supports models to be deployed using 
   # DJL (Deep Java Library)
-  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
+  # 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
+  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.32.0-lmi14.0.0-cu126
   # these are the environment variables that are used
   # to deploy the model
   container_env_vars:
-    "SERVING_FAIL_FAST": "true"
-    "OPTION_ASYNC_MODE": "true"
-    "OPTION_ROLLING_BATCH": "disable"
-    "HF_MODEL_ID": meta-llama/Llama-3.1-8B
-    "OPTION_MAX_MODEL_LEN": "4096"
+    "HF_MODEL_ID": meta-llama/Llama-3.1-8B-Instruct
+    "OPTION_ROLLING_BATCH": "lmi-dist"
+    "OPTION_MAX_ROLLING_BATCH_SIZE": "16"
     "OPTION_TENSOR_PARALLEL_DEGREE": "max"
-    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
+    "OPTION_DTYPE": "fp16"
+    "OPTION_MAX_MODEL_LEN": "6000"
+    # "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
   # this is the instance type to deploy the model on
   instance_type: ml.g5.2xlarge
   # this is the container startup health check timeout time

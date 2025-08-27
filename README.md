@@ -58,49 +58,47 @@ python -m ipykernel install --user --name=.venv --display-name="Python (uv env)"
 Update the configuration file with your specific settings:
 
 ```yaml
-# Standard deployment configuration
+# this is the configuration for the standard deployment time
 standard_deployment_info:
-  hf_model_id: meta-llama/Llama-3.1-8B  # Your HuggingFace model ID
-  sagemaker_exec_role: arn:aws:iam::YOUR_ACCOUNT:role/service-role/AmazonSageMaker-ExecutionRole-XXXXXX
-  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
-  instance_type: ml.g5.2xlarge  # Adjust based on model size
+  hf_model_id: meta-llama/Llama-3.1-8B-Instruct
+  sagemaker_exec_role: 
+  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.32.0-lmi14.0.0-cu126
+  container_env_vars:
+    "HF_MODEL_ID": meta-llama/Llama-3.1-8B-Instruct
+    "OPTION_ROLLING_BATCH": "lmi-dist"
+    "OPTION_MAX_ROLLING_BATCH_SIZE": "16"
+    "OPTION_TENSOR_PARALLEL_DEGREE": "max"
+    "OPTION_DTYPE": "fp16"
+    "OPTION_MAX_MODEL_LEN": "6000"
+  instance_type: ml.g5.2xlarge
   container_startup_health_check_timeout: 600
   use_hf_token: yes
-  container_env_vars:
-    "SERVING_FAIL_FAST": "true"
-    "OPTION_ASYNC_MODE": "true"
-    "OPTION_ROLLING_BATCH": "disable"
-    "HF_MODEL_ID": meta-llama/Llama-3.1-8B  # Match hf_model_id
-    "OPTION_MAX_MODEL_LEN": "4096"
-    "OPTION_TENSOR_PARALLEL_DEGREE": "max"
-    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
 
-# Fast model loading configuration
+# This is the configuration for fast model loading
 fast_model_loading_info:
-  hf_model_id: meta-llama/Llama-3.1-8B  # Your HuggingFace model ID
-  bucket: your-s3-bucket-name  # S3 bucket for storing optimized weights
-  sagemaker_exec_role: arn:aws:iam::YOUR_ACCOUNT:role/service-role/AmazonSageMaker-ExecutionRole-XXXXXX
-  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.33.0-lmi15.0.0-cu128
-  instance_type: ml.g5.2xlarge  # Adjust based on model size
+  hf_model_id: meta-llama/Llama-3.1-8B-Instruct
+  bucket: 
+  sagemaker_exec_role: 
+  image_uri: 763104351884.dkr.ecr.{region}.amazonaws.com/djl-inference:0.32.0-lmi14.0.0-cu126
+  container_env_vars:
+    "HF_MODEL_ID": meta-llama/Llama-3.1-8B-Instruct
+    "OPTION_ROLLING_BATCH": "lmi-dist"
+    "OPTION_MAX_ROLLING_BATCH_SIZE": "16"
+    "OPTION_TENSOR_PARALLEL_DEGREE": "max"
+    "OPTION_DTYPE": "fp16"
+    "OPTION_MAX_MODEL_LEN": "6000"
+  instance_type: ml.g5.2xlarge
   container_startup_health_check_timeout: 600
+  sample_input: 
+    "inputs": "What is the capital of France?"
+    "parameters": 
+        "max_new_tokens": 100
+        "temperature": 0.7
+        "do_sample": True
+  sample_output:
+  - "generated_text": "The capital of France is Paris."
   instance_count: 1
   use_hf_token: yes
-  container_env_vars:
-    "SERVING_FAIL_FAST": "true"
-    "OPTION_ASYNC_MODE": "true"
-    "OPTION_ROLLING_BATCH": "disable"
-    "HF_MODEL_ID": meta-llama/Llama-3.1-8B
-    "OPTION_MAX_MODEL_LEN": "4096"
-    "OPTION_TENSOR_PARALLEL_DEGREE": "max"
-    "OPTION_ENTRYPOINT": "djl_python.lmi_vllm.vllm_async_service"
-  sample_input:
-    "inputs": "What is the capital of France?"
-    "parameters":
-      "max_new_tokens": 100
-      "temperature": 0.7
-      "do_sample": True
-  sample_output:
-    - "generated_text": "The capital of France is Paris."
 ```
 
 #### Required Configuration Updates:
@@ -175,27 +173,66 @@ Both scripts will output detailed timing metrics:
 - **Deployment time**
 - **Total execution time**
 
-Expected performance improvements with Fast Model Loading:
-- 2-5x faster deployment times
-- Reduced cold start latency
-- More efficient resource utilization
+## Results
+Running both deployment formats will generate a `txt` and `json` files that will contain information on time taken to optimize and deploy models and the difference in the two. Using the standard `llama3.1 8b instruct` model deployed on a `ml.g5.2xlarge`, the deployment time dropped from 10 minutes 32 seconds to 7 minutes 30 seconds. View the results below:
 
-## Supported Models
+### Using Standard Deployment
 
-This benchmark supports any HuggingFace model compatible with DJL inference, including:
+```txt
 
-- **Text Generation Models:** Llama, Mistral, CodeLlama, etc.
-- **Gated Models:** Models requiring HuggingFace authentication
-- **Large Language Models:** Models up to 70B parameters (with appropriate instance types)
+============================================================
+🎉 DEPLOYMENT SUMMARY
+============================================================
+📊 TIMING METRICS:
+  • Setup time:      0s
+  • Deployment time: 10m 32s
+  • Total time:      10m 33s
 
-## Instance Type Recommendations
+📋 DEPLOYMENT DETAILS:
+  • Endpoint name:   
+  • Instance type:   ml.g5.2xlarge
+  • Model:           meta-llama/Llama-3.1-8B-Instruct
+  • Container:       763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.32.0-lmi14.0.0-cu126
+  • Completed at:    2025-08-27 22:01:06
 
-| Model Size | Recommended Instance Type | Memory Requirements |
-|-----------|---------------------------|-------------------|
-| 7B-8B parameters | ml.g5.xlarge | 24GB GPU memory |
-| 13B-15B parameters | ml.g5.2xlarge | 48GB GPU memory |
-| 30B-34B parameters | ml.g5.4xlarge | 96GB GPU memory |
-| 65B-70B parameters | ml.g5.12xlarge+ | 192GB+ GPU memory |
+==================================================
+EXAMPLE USAGE FOR VISION-LANGUAGE TASKS:
+==================================================
+# For text + image inputs, use this format:
+payload = {
+    "inputs": [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What do you see in this image?"},
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,YOUR_BASE64_IMAGE"}}
+            ]
+        }
+    ],
+    "parameters": {
+        "max_new_tokens": 512,
+        "temperature": 0.7
+    }
+}
+response = predictor.predict(payload)
+```
+
+### Using Fast Model Loading
+
+```json
+{
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "instance_type": "ml.g5.2xlarge",
+  "initialization_time": 0.014258765993872657,
+  "builder_creation_time": 0.0004756310081575066,
+  "optimization_time": 1116.8918553480034,
+  "build_time": 1.3685317259951262,
+  "deployment_time": 450.0898740720004,
+  "testing_time": 0.14585125500161666,
+  "total_execution_time": 1568.5111365079938,
+  "timestamp": "2025-08-27 21:41:41"
+}
+```
 
 ## Troubleshooting
 
@@ -224,13 +261,6 @@ This benchmark supports any HuggingFace model compatible with DJL inference, inc
    Access denied to S3 bucket
    ```
    **Solution:** Verify bucket permissions and SageMaker execution role policies
-
-### Performance Optimization Tips
-
-1. **Use Latest Container Images:** Ensure you're using the most recent DJL inference container
-2. **Optimize Tensor Parallelism:** Adjust `OPTION_TENSOR_PARALLEL_DEGREE` based on instance GPU count
-3. **Monitor Resource Usage:** Use CloudWatch to monitor CPU, memory, and GPU utilization
-4. **Regional Considerations:** Deploy in the same region as your S3 bucket for optimal performance
 
 ## Cleanup
 
